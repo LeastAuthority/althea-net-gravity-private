@@ -83,3 +83,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Submit an invalid deposit
         run: tests/all-up-test.sh INVALID_DEPOSIT
+  unhalt-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Halt and then unhalt the bridge via governance
+        run: tests/all-up-test.sh UNHALT_BRIDGE
