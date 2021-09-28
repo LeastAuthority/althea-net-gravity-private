@@ -3,13 +3,17 @@ use crate::happy_path::test_erc20_deposit;
 use crate::one_eth;
 use crate::utils::*;
 use crate::ADDRESS_PREFIX;
+use crate::MINER_ADDRESS;
+use crate::MINER_PRIVATE_KEY;
 use crate::OPERATION_TIMEOUT;
 use crate::STAKING_TOKEN;
 use crate::STARTING_STAKE_PER_VALIDATOR;
 use crate::TOTAL_TIMEOUT;
-use crate::MINER_ADDRESS;
-use crate::MINER_PRIVATE_KEY;
+use bytes::BytesMut;
+use clarity::abi::encode_call;
+use clarity::abi::Token;
 use clarity::{Address as EthAddress, Uint256};
+use cosmos_gravity::query::get_attestations;
 use cosmos_gravity::query::get_last_event_nonce_for_validator;
 use cosmos_gravity::send::MEMO;
 use deep_space::address::Address as CosmosAddress;
@@ -19,6 +23,7 @@ use deep_space::utils::encode_any;
 use deep_space::Contact;
 use deep_space::Fee;
 use deep_space::Msg;
+use ethereum_gravity::send_to_cosmos;
 use ethereum_gravity::utils::downcast_uint256;
 use futures::future::join;
 use gravity_proto::cosmos_sdk_proto::cosmos::gov::v1beta1::VoteOption;
@@ -28,12 +33,16 @@ use gravity_proto::cosmos_sdk_proto::cosmos::staking::v1beta1::QueryValidatorsRe
 use gravity_proto::cosmos_sdk_proto::cosmos::tx::v1beta1::BroadcastMode;
 use gravity_proto::gravity::query_client::QueryClient as GravityQueryClient;
 use gravity_proto::gravity::MsgSendToCosmosClaim;
+use prost::Message;
 use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 use std::time::Instant;
 use tonic::transport::Channel;
 use web30::client::Web3;
+use web30::jsonrpc::error::Web3Error;
+use web30::types::SendTxOption;
+use tokio::time::sleep as delay_for;
 
 pub async fn unhalt_bridge_test(
     web30: &Web3,
@@ -134,7 +143,10 @@ pub async fn unhalt_bridge_test(
         val2_nonce == initial_valid_nonce + 1 && val2_nonce == val3_nonce,
         "The false claims validators do not have updated nonces"
     );
-    assert_eq!( val1_nonce, initial_valid_nonce, "The honest validator should not have an updated nonce!" );
+    assert_eq!(
+        val1_nonce, initial_valid_nonce,
+        "The honest validator should not have an updated nonce!"
+    );
 
     info!("Checking that bridge is halted!");
 
@@ -224,21 +236,26 @@ pub async fn unhalt_bridge_test(
     //     gravity_address,
     //     no_relay_market_config.clone(),
     // );
+    info!("Observing attestations before bridging asset to cosmos!");
+    observe_sends_to_cosmos(&grpc_client, true).await;
 
     info!("Attempting to resend now that the bridge should be fixed");
-    let res = test_erc20_deposit(
+    let res = bridge_asset(
         web30,
         contact,
         &mut grpc_client,
         bridge_user.cosmos_address,
         gravity_address,
         erc20_address,
-        Uint256::from_str("100_000_000_000_000_000").unwrap(),
-        Some(Duration::from_secs(30)),
+        Uint256::from_str("50_000_000_000_000_000").unwrap(),
+        None,
+        //initial_valid_nonce as u32 + 1u32,
     )
     .await;
-    if !res {
-        panic!("Failed to bridge ERC20!")
+    match res {
+        Ok(true) => info!("Successfully bridged asset!"),
+        Ok(false) => panic!("Failed to bridge ERC20!"),
+        Err(x) => panic!("Failed to bridge ERC20: {}", x),
     }
 
     info!("res is {:?}", res);
@@ -502,4 +519,155 @@ async fn submit_false_claims(
             info!("Received an error from claim_2 {}", err);
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn bridge_asset(
+    web30: &Web3,
+    contact: &Contact,
+    grpc_client: &mut GravityQueryClient<Channel>,
+    dest: CosmosAddress,
+    gravity_address: EthAddress,
+    erc20_address: EthAddress,
+    amount: Uint256,
+    timeout: Option<Duration>,
+) -> Result<bool, Web3Error> {
+    let start_coin = check_cosmos_balance("gravity", dest, contact).await;
+    const SEND_TO_COSMOS_GAS_LIMIT: u128 = 100_000;
+
+    info!(
+        "Sending to Cosmos from {} to {} with amount {}",
+        *MINER_ADDRESS, dest, amount
+    );
+
+    let mut options: Vec<SendTxOption> = vec![];
+    //options.push(SendTxOption::Nonce(nonce.into()));
+    let txid = web30
+        .approve_erc20_transfers(
+            erc20_address,
+            *MINER_PRIVATE_KEY,
+            gravity_address,
+            None,
+            options.clone(),
+        )
+        .await?;
+    trace!(
+        "We are not approved for ERC20 transfers, approving txid: {:#066x}",
+        txid
+    );
+    if let Some(duration) = timeout {
+        web30
+            .wait_for_transaction(txid.clone(), duration, None)
+            .await?;
+    }
+
+    let _tx_res = web30
+        .wait_for_transaction(txid, OPERATION_TIMEOUT, None)
+        .await
+        .expect("Send to cosmos transaction failed to be included into ethereum side");
+
+    options.push(SendTxOption::GasLimit(SEND_TO_COSMOS_GAS_LIMIT.into()));
+    //options.push(SendTxOption::Nonce((nonce + 1u32).into()));
+    let mut cosmos_dest_address_bytes = dest.as_bytes().to_vec();
+    while cosmos_dest_address_bytes.len() < 32 {
+        cosmos_dest_address_bytes.insert(0, 0u8);
+    }
+    let encoded_destination_address = Token::Bytes(cosmos_dest_address_bytes);
+    let tx_hash = web30
+        .send_transaction(
+            gravity_address,
+            encode_call(
+                "sendToCosmos(address,bytes32,uint256)",
+                &[
+                    erc20_address.into(),
+                    encoded_destination_address,
+                    amount.clone().into(),
+                ],
+            )?,
+            0u32.into(),
+            *MINER_ADDRESS,
+            *MINER_PRIVATE_KEY,
+            options,
+        )
+        .await?;
+
+    if let Some(duration) = timeout {
+        web30
+            .wait_for_transaction(tx_hash.clone(), duration, None)
+            .await?;
+    }
+
+    delay_for(Duration::from_secs(10)).await;
+    observe_sends_to_cosmos(&grpc_client, true).await;
+
+
+
+    let start = Instant::now();
+    let duration = match timeout {
+        Some(w) => w,
+        None => TOTAL_TIMEOUT,
+    };
+    while Instant::now() - start < duration {
+        match (
+            start_coin.clone(),
+            check_cosmos_balance("gravity", dest, contact).await,
+        ) {
+            (Some(start_coin), Some(end_coin)) => {
+                if start_coin.amount + amount.clone() == end_coin.amount
+                    && start_coin.denom == end_coin.denom
+                {
+                    info!(
+                        "Successfully bridged ERC20 {}{} to Cosmos! Balance is now {}{}",
+                        amount, start_coin.denom, end_coin.amount, end_coin.denom
+                    );
+                    return Ok(true);
+                }
+            }
+            (None, Some(end_coin)) => {
+                if amount == end_coin.amount {
+                    info!(
+                        "Successfully bridged ERC20 {}{} to Cosmos! Balance is now {}{}",
+                        amount, end_coin.denom, end_coin.amount, end_coin.denom
+                    );
+                    return Ok(true);
+                } else {
+                    return Ok(false);
+                }
+            }
+            _ => {}
+        }
+        info!("Waiting for ERC20 deposit");
+        //observe_sends_to_cosmos(&mut grpc_client.clone(), false).await;
+        contact.wait_for_next_block(TOTAL_TIMEOUT).await.unwrap();
+    }
+    Ok(false)
+}
+
+async fn observe_sends_to_cosmos(
+    grpc_client: &GravityQueryClient<Channel>,
+    print_others: bool,
+) {
+    let mut grpc_client = &mut grpc_client.clone();
+    let attestations = get_attestations(&mut grpc_client, None)
+        .await
+        .expect("Something happened while getting attestations after delegating to validator");
+    for (i, attestation) in attestations.into_iter().enumerate() {
+        let claim = attestation.clone().claim.unwrap();
+        if  print_others && claim.type_url != "/gravity.v1.MsgSendToCosmosClaim"{
+            info!("attestation {}: {:?}", i, &attestation);
+            continue;
+        }
+        let mut buf = BytesMut::with_capacity(claim.value.len());
+        buf.extend_from_slice(&claim.value);
+
+        // Here we use the `T` type to decode whatever type of message this attestation holds
+        // for use in the `f` function
+        let decoded = MsgSendToCosmosClaim::decode(buf);
+
+        info!(
+            "attestation {}: votes {:?}\n decoded{:?}",
+            i, &attestation.votes, decoded
+        );
+    }
+
 }

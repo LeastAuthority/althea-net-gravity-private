@@ -113,20 +113,12 @@ pub async fn eth_oracle_main_loop(
     let mut last_checked_event: Uint256 = 0u8.into();
     info!("Oracle resync complete, Oracle now operational");
     let mut grpc_client = grpc_client;
+    let mut resync = false;
 
     loop {
         let loop_start = Instant::now();
-
-        // TODO: Don't unwrap here, although this might be indicative of an error situation
-        let last_checked_event_module = get_last_event_nonce_for_validator(
-            &mut grpc_client.clone(),
-            our_cosmos_address,
-            contact.get_prefix(),
-        ).await.unwrap();
-        if last_checked_event > last_checked_event_module.into() {
-            info!("Discrepancy between module and orchestrator, last relayed events were from block \
-            {} but module says {}. Governance unhalt vote must have happened, resetting the block to check!",
-                last_checked_block, last_checked_event_module);
+        if resync {
+            info!("Governance unhalt vote must have happened, resetting the block to check!");
             last_checked_block = get_last_checked_block(
                 grpc_client.clone(),
                 our_cosmos_address,
@@ -134,6 +126,19 @@ pub async fn eth_oracle_main_loop(
                 gravity_contract_address,
                 &web3
             ).await;
+            resync = false;
+        }
+
+        // TODO: Don't unwrap here, although this might be indicative of an error situation
+        let last_checked_event_module = get_last_event_nonce_for_validator(
+            &mut grpc_client.clone(),
+            our_cosmos_address,
+            contact.get_prefix(),
+        ).await.unwrap();
+        info!("Orchestrator {}: last_event_nonce_for_validator {} last_checked_event {}",
+            our_cosmos_address.to_string(), last_checked_event_module, last_checked_event);
+        if last_checked_event > last_checked_event_module.into() {
+
         }
         let latest_eth_block = web3.eth_block_number().await;
         let latest_cosmos_block = contact.get_chain_status().await;
@@ -185,7 +190,16 @@ pub async fn eth_oracle_main_loop(
         .await
         {
             Ok(nonces) => {
+                if last_checked_block > nonces.block_number {
+                    info!("orchestrator {} setting last_checked_block back from {} to {}",
+                        our_cosmos_address, last_checked_block, nonces.block_number);
+                }
                 last_checked_block = nonces.block_number;
+                if last_checked_event > nonces.event_nonce {
+                    info!("orchestrator {} setting last_checked_event back from {} to {}",
+                        our_cosmos_address, last_checked_event, nonces.event_nonce);
+                    resync = true;
+                }
                 last_checked_event = nonces.event_nonce;
             },
             Err(e) => error!(

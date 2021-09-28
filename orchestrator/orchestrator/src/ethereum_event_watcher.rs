@@ -167,6 +167,11 @@ pub async fn check_for_events(
             || !logic_calls.is_empty()
             || !valsets.is_empty()
         {
+            info!("orchestrator {} submitting deposits:", our_private_key.to_public_key(&contact.get_prefix()).unwrap());
+            for (i, deposit) in deposits.clone().into_iter().enumerate() {
+                info!("submitting deposit i:{} of {} {} token, from {} to {} with event nonce {}",
+                    i, deposit.amount, deposit.erc20, deposit.sender, deposit.destination, deposit.event_nonce)
+            }
             let res = send_ethereum_claims(
                 contact,
                 our_private_key,

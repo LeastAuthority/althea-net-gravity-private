@@ -214,8 +214,8 @@ func (k Keeper) GetResetBridgeState(ctx sdk.Context) bool {
 	return state
 }
 
-func (k Keeper) GetResetBridgeNonce(ctx sdk.Context) int64 {
-	var nonce int64
+func (k Keeper) GetResetBridgeNonce(ctx sdk.Context) uint64 {
+	var nonce uint64
 	k.paramSpace.Get(ctx, types.ParamStoreResetBridgeNonce, &nonce)
 	return nonce
 }
@@ -225,7 +225,7 @@ func (k Keeper) SetResetBridgeState(ctx sdk.Context, state bool) {
 	k.paramSpace.Set(ctx, types.ParamStoreResetBridgeState, state)
 }
 
-func (k Keeper) SetResetBridgeNonce(ctx sdk.Context, nonce int64) {
+func (k Keeper) SetResetBridgeNonce(ctx sdk.Context, nonce uint64) {
 	ctx.Logger().Info(fmt.Sprintf("SetResetBridgeNonce: Setting resetBridgeNonce=%v", nonce))
 	k.paramSpace.Set(ctx, types.ParamStoreResetBridgeNonce, nonce)
 }

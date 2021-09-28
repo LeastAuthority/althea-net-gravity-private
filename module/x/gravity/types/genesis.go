@@ -148,7 +148,7 @@ func DefaultParams() *Params {
 			Amount: sdk.ZeroInt(),
 		},
 		ResetBridgeState: false,
-		ResetBridgeNonce: -1,
+		ResetBridgeNonce: 0,
 	}
 }
 
@@ -417,7 +417,7 @@ func validateResetBridgeState(i interface{}) error {
 }
 
 func validateResetBridgeNonce(i interface{}) error {
-	if _, ok := i.(int64); !ok {
+	if _, ok := i.(uint64); !ok {
 		return fmt.Errorf("invalid parameter type %T", i)
 	}
 	return nil

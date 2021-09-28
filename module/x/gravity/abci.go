@@ -28,11 +28,10 @@ func EndBlocker(ctx sdk.Context, k keeper.Keeper) {
 func unhaltBridge(ctx sdk.Context, k keeper.Keeper, params types.Params) {
 	if params.ResetBridgeState {
 		ctx.Logger().Info("Gov vote passed - Unhalting the bridge!")
-		if params.ResetBridgeNonce < 0 {
-			panic(fmt.Sprintf("Attempted to reset the bridge to nonce %v which is less than 0!", params.ResetBridgeNonce))
+		if params.ResetBridgeNonce == 0 {
+			panic(fmt.Sprintf("Attempted to reset the bridge to nonce %v which is not allowed!", params.ResetBridgeNonce))
 		}
 
-		// TODO: Will int64 to uint64 conversion cause an issue by not capturing the full nonce range?
 		ctx.Logger().Info(fmt.Sprintf("Resetting oracle history to nonce %v", params.ResetBridgeNonce))
 		pruneAttestationsAfterNonce(ctx, k, uint64(params.ResetBridgeNonce))
 		// Reset the parameters now that the bridge is unhalted

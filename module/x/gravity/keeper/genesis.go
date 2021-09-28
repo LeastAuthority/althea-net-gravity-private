@@ -154,7 +154,7 @@ func InitGenesis(ctx sdk.Context, k Keeper, data types.GenesisState) {
 	ctx.Logger().Info("InitGenesis: Setting resetBridgeState=false and resetBridgeNonce=-1")
 	resetBridgeState := false
 	k.SetResetBridgeState(ctx, resetBridgeState)
-	resetBridgeNonce := int64(-1)
+	resetBridgeNonce := uint64(0)
 	k.SetResetBridgeNonce(ctx, resetBridgeNonce)
 }
 
