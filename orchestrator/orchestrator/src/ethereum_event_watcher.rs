@@ -38,6 +38,8 @@ pub async fn check_for_events(
     let latest_block = get_block_number_with_retry(web3).await;
     let latest_block = latest_block - get_block_delay(web3).await;
 
+    info!("Orchestrator {} Searching for deposits with start_block {} end_block {}",
+        our_cosmos_address.to_string(), starting_block.clone(), latest_block.clone());
     let deposits = web3
         .check_for_events(
             starting_block.clone(),
@@ -100,7 +102,7 @@ pub async fn check_for_events(
         let withdraws = TransactionBatchExecutedEvent::from_logs(&batches)?;
         trace!("parsed batches {:?}", batches);
         let deposits = SendToCosmosEvent::from_logs(&deposits)?;
-        trace!("parsed deposits {:?}", deposits);
+        info!("parsed deposits {:?}", deposits);
         let erc20_deploys = Erc20DeployedEvent::from_logs(&deploys)?;
         trace!("parsed erc20 deploys {:?}", erc20_deploys);
         let logic_calls = LogicCallExecutedEvent::from_logs(&logic_calls)?;

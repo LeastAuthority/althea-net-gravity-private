@@ -126,6 +126,7 @@ async fn setup_batch_test(
             erc20_contract,
             one_eth() * 100u64.into(),
             None,
+            None,
         )
         .await;
 
@@ -147,6 +148,7 @@ async fn setup_batch_test(
         gravity_address,
         erc20_contract,
         one_eth() * 100u64.into(),
+        None,
         None,
     )
     .await;

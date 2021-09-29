@@ -23,7 +23,7 @@ use deep_space::utils::encode_any;
 use deep_space::Contact;
 use deep_space::Fee;
 use deep_space::Msg;
-use ethereum_gravity::send_to_cosmos;
+use ethereum_gravity::send_to_cosmos::send_to_cosmos;
 use ethereum_gravity::utils::downcast_uint256;
 use futures::future::join;
 use gravity_proto::cosmos_sdk_proto::cosmos::gov::v1beta1::VoteOption;
@@ -75,8 +75,10 @@ pub async fn unhalt_bridge_test(
     )
     .await;
 
+    info!("Redistribute stake!");
     redistribute_stake(&keys, contact, &prefix).await;
 
+    info!("Test bridge before false claims!");
     // Test a deposit to increment the event nonce before false claims happen
     let success = test_erc20_deposit(
         web30,
@@ -86,6 +88,7 @@ pub async fn unhalt_bridge_test(
         gravity_address,
         erc20_address,
         10_000_000_000_000_000u64.into(),
+        None,
         None,
     )
     .await;
@@ -150,6 +153,7 @@ pub async fn unhalt_bridge_test(
 
     info!("Checking that bridge is halted!");
 
+    let halted_bridge_amt = Uint256::from_str("100_000_000_000_000_000").unwrap();
     // Attempt transaction on halted bridge
     let success = test_erc20_deposit(
         web30,
@@ -158,8 +162,9 @@ pub async fn unhalt_bridge_test(
         bridge_user.cosmos_address,
         gravity_address,
         erc20_address,
-        Uint256::from_str("100_000_000_000_000_000").unwrap(),
+        halted_bridge_amt.clone(),
         Some(Duration::from_secs(30)),
+        None,
     )
     .await;
     if success {
@@ -180,6 +185,7 @@ pub async fn unhalt_bridge_test(
         initial_valid_nonce
     );
 
+    info!("Preparing governance proposal!!");
     // Unhalt the bridge
     let deposit = Coin {
         denom: STAKING_TOKEN.to_string(),
@@ -223,39 +229,31 @@ pub async fn unhalt_bridge_test(
         "The post-reset nonces are not equal to the initial nonce",
     );
 
-    // // Restart the failed orchestrators
-    // start_orchestrator(
-    //     &keys[1],
-    //     grpc_client.clone(),
-    //     gravity_address,
-    //     no_relay_market_config.clone(),
-    // );
-    // start_orchestrator(
-    //     &keys[2],
-    //     grpc_client.clone(),
-    //     gravity_address,
-    //     no_relay_market_config.clone(),
-    // );
+    // After the governance proposal the resync will happen on the next loop.
+    // Wait for a bit to replay stuck transactions
+    info!("Sleeping so that resync can complete!");
+    sleep(Duration::from_secs(30));
+
     info!("Observing attestations before bridging asset to cosmos!");
     observe_sends_to_cosmos(&grpc_client, true).await;
 
+    let fixed_bridge_amt = Uint256::from_str("50_000_000_000_000_000").unwrap();
     info!("Attempting to resend now that the bridge should be fixed");
-    let res = bridge_asset(
+    let res = test_erc20_deposit(
         web30,
         contact,
         &mut grpc_client,
         bridge_user.cosmos_address,
         gravity_address,
         erc20_address,
-        Uint256::from_str("50_000_000_000_000_000").unwrap(),
+        fixed_bridge_amt.clone(),
         None,
-        //initial_valid_nonce as u32 + 1u32,
+        Some(halted_bridge_amt.clone() + fixed_bridge_amt.clone()),
     )
     .await;
     match res {
-        Ok(true) => info!("Successfully bridged asset!"),
-        Ok(false) => panic!("Failed to bridge ERC20!"),
-        Err(x) => panic!("Failed to bridge ERC20: {}", x),
+        true => info!("Successfully bridged asset!"),
+        false => panic!("Failed to bridge ERC20!"),
     }
 
     info!("res is {:?}", res);
@@ -541,65 +539,25 @@ async fn bridge_asset(
     );
 
     let mut options: Vec<SendTxOption> = vec![];
-    //options.push(SendTxOption::Nonce(nonce.into()));
-    let txid = web30
-        .approve_erc20_transfers(
-            erc20_address,
-            *MINER_PRIVATE_KEY,
-            gravity_address,
-            None,
-            options.clone(),
-        )
-        .await?;
-    trace!(
-        "We are not approved for ERC20 transfers, approving txid: {:#066x}",
-        txid
-    );
-    if let Some(duration) = timeout {
-        web30
-            .wait_for_transaction(txid.clone(), duration, None)
-            .await?;
-    }
-
-    let _tx_res = web30
-        .wait_for_transaction(txid, OPERATION_TIMEOUT, None)
-        .await
-        .expect("Send to cosmos transaction failed to be included into ethereum side");
-
-    options.push(SendTxOption::GasLimit(SEND_TO_COSMOS_GAS_LIMIT.into()));
-    //options.push(SendTxOption::Nonce((nonce + 1u32).into()));
-    let mut cosmos_dest_address_bytes = dest.as_bytes().to_vec();
-    while cosmos_dest_address_bytes.len() < 32 {
-        cosmos_dest_address_bytes.insert(0, 0u8);
-    }
-    let encoded_destination_address = Token::Bytes(cosmos_dest_address_bytes);
-    let tx_hash = web30
-        .send_transaction(
-            gravity_address,
-            encode_call(
-                "sendToCosmos(address,bytes32,uint256)",
-                &[
-                    erc20_address.into(),
-                    encoded_destination_address,
-                    amount.clone().into(),
-                ],
-            )?,
-            0u32.into(),
-            *MINER_ADDRESS,
-            *MINER_PRIVATE_KEY,
-            options,
-        )
-        .await?;
+    let tx_id = send_to_cosmos(
+        erc20_address,
+        gravity_address,
+        amount.clone(),
+        dest.clone(),
+        *MINER_PRIVATE_KEY,
+        timeout.clone(),
+        web30,
+        vec![],
+    ).await.unwrap();
 
     if let Some(duration) = timeout {
         web30
-            .wait_for_transaction(tx_hash.clone(), duration, None)
+            .wait_for_transaction(tx_id.clone(), duration, None)
             .await?;
     }
 
     delay_for(Duration::from_secs(10)).await;
     observe_sends_to_cosmos(&grpc_client, true).await;
-
 
 
     let start = Instant::now();
