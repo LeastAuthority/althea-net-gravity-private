@@ -662,7 +662,7 @@ func TestQueryLogicCalls(t *testing.T) {
 		input.GravityKeeper.StakingKeeper = NewStakingKeeperMock(validators...)
 	}
 
-	token := []*types.ERC20Token{{
+	token := []types.ERC20Token{{
 		Contract: tokenContract,
 		Amount:   sdk.NewIntFromUint64(5000),
 	}}
@@ -676,7 +676,7 @@ func TestQueryLogicCalls(t *testing.T) {
 		InvalidationId:       invalidationId,
 		InvalidationNonce:    uint64(invalidationNonce),
 	}
-	k.SetOutgoingLogicCall(ctx, &call)
+	k.SetOutgoingLogicCall(ctx, call)
 
 	res := k.GetOutgoingLogicCall(ctx, invalidationId, invalidationNonce)
 
@@ -721,7 +721,7 @@ func TestQueryLogicCallsConfirms(t *testing.T) {
 		input.GravityKeeper.StakingKeeper = NewStakingKeeperMock(validators...)
 	}
 
-	token := []*types.ERC20Token{{
+	token := []types.ERC20Token{{
 		Contract: tokenContract,
 		Amount:   sdk.NewIntFromUint64(5000),
 	}}
@@ -735,7 +735,7 @@ func TestQueryLogicCallsConfirms(t *testing.T) {
 		InvalidationId:       invalidationId,
 		InvalidationNonce:    uint64(invalidationNonce),
 	}
-	k.SetOutgoingLogicCall(ctx, &call)
+	k.SetOutgoingLogicCall(ctx, call)
 
 	var valAddr sdk.AccAddress = bytes.Repeat([]byte{byte(1)}, 20)
 
@@ -919,7 +919,7 @@ func TestQueryCurrentValset(t *testing.T) {
 	internalBridgeVals := types.InternalBridgeValidators([]*types.InternalBridgeValidator{internalBridgeVal})
 	expectedValset, err := types.NewValset(1, 1234567, internalBridgeVals, sdk.NewIntFromUint64(0), *types.ZeroAddress())
 	require.NoError(t, err)
-	assert.Equal(t, expectedValset, currentValset)
+	assert.Equal(t, *expectedValset, currentValset)
 }
 
 //nolint: exhaustivestruct
