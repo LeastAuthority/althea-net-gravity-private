@@ -1,5 +1,5 @@
 use crate::happy_path::{test_erc20_deposit_bool, test_erc20_deposit_panic};
-use crate::{get_deposit, utils::*};
+use crate::{get_deposit, utils::*, TOTAL_TIMEOUT};
 use crate::{get_fee, one_eth, OPERATION_TIMEOUT};
 use bytes::BytesMut;
 use clarity::{Address as EthAddress, Uint256};
@@ -105,20 +105,34 @@ pub async fn unhalt_bridge_test(
     .await;
 
     info!("Getting latest nonce after false claims for each validator");
-    let after_false_claims_nonces = get_nonces(&mut grpc_client, &keys, &prefix).await;
-    info!(
-        "initial_nonce: {} after_false_claims_nonces: {:?}",
-        initial_valid_nonce, after_false_claims_nonces,
-    );
+    let mut updated_nonce = false;
+    let mut not_updated_nonce = false;
+    let start = Instant::now();
+    while Instant::now() - start < TOTAL_TIMEOUT {
+        let after_false_claims_nonces = get_nonces(&mut grpc_client, &keys, &prefix).await;
+
+        updated_nonce = after_false_claims_nonces[1] == initial_valid_nonce + 1
+            && after_false_claims_nonces[1] == after_false_claims_nonces[2];
+
+        not_updated_nonce = after_false_claims_nonces[0] == initial_valid_nonce;
+
+        if updated_nonce && not_updated_nonce {
+            info!(
+                "initial_nonce: {} after_false_claims_nonces: {:?}",
+                initial_valid_nonce, after_false_claims_nonces,
+            );
+            break;
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
 
     // validator_1 nonce and validator_2 nonce should be initial + 1 but val1_nonce should not
     assert!(
-        after_false_claims_nonces[1] == initial_valid_nonce + 1
-            && after_false_claims_nonces[1] == after_false_claims_nonces[2],
+        updated_nonce,
         "The false claims validators do not have updated nonces"
     );
-    assert_eq!(
-        after_false_claims_nonces[0], initial_valid_nonce,
+    assert!(
+        not_updated_nonce,
         "The honest validator should not have an updated nonce!"
     );
 
@@ -183,11 +197,19 @@ pub async fn unhalt_bridge_test(
             break;
         }
     }
-    let after_unhalt_nonces = get_nonces(&mut grpc_client, &keys, &prefix).await;
-    assert!(
-        after_unhalt_nonces
+    let mut not_equal = false;
+    while Instant::now() - start < TOTAL_TIMEOUT {
+        let after_unhalt_nonces = get_nonces(&mut grpc_client, &keys, &prefix).await;
+        not_equal = after_unhalt_nonces
             .iter()
-            .all(|&nonce| nonce == initial_valid_nonce),
+            .all(|&nonce| nonce == initial_valid_nonce);
+        if not_equal {
+            break;
+        }
+        sleep(Duration::from_secs(1)).await;
+    }
+    assert!(
+        not_equal,
         "The post-reset nonces are not equal to the initial nonce",
     );
 
