@@ -1,7 +1,6 @@
 #!/bin/bash
 set -eux
 # your gaiad binary name
-BIN=gravity
 
 NODES=$1
 set +u
@@ -9,6 +8,7 @@ TEST_TYPE=$2
 ALCHEMY_ID=$3
 set -u
 
+BIN=gravity
 for i in $(seq 1 $NODES);
 do
     # add this ip for loopback dialing
@@ -39,6 +39,32 @@ do
     LOG_LEVEL="--log_level info"
     ARGS="$GAIA_HOME $LISTEN_ADDRESS $RPC_ADDRESS $GRPC_ADDRESS $GRPC_WEB_ADDRESS $LOG_LEVEL $P2P_ADDRESS"
     $BIN $ARGS start &> /validator$i/logs &
+done
+
+
+# TODO start IBC chain here
+BIN=simd
+for i in $(seq 1 $NODES);
+do
+    ip addr add 7.7.8.$i/32 dev eth0 || true # allowed to fail
+
+    GAIA_HOME="--home /ibc-validator$i"
+    if [[ "$i" -eq 1 ]]; then
+        # node one gets localhost so we can easily shunt these ports
+        # to the docker host
+        RPC_ADDRESS="--rpc.laddr tcp://0.0.0.0:27657"
+        GRPC_ADDRESS="--grpc.address 0.0.0.0:9190"
+        GRPC_WEB_ADDRESS="--grpc-web.address 0.0.0.0:9192"
+    else
+        RPC_ADDRESS="--rpc.laddr tcp://7.7.8.$i:26658"
+        GRPC_ADDRESS="--grpc.address 7.7.8.$i:9091"
+        GRPC_WEB_ADDRESS="--grpc-web.address 7.7.8.$i:9093"
+    fi
+    LISTEN_ADDRESS="--address tcp://7.7.8.$i:26655"
+    P2P_ADDRESS="--p2p.laddr tcp://7.7.8.$i:26656"
+    LOG_LEVEL="--log_level info"
+    ARGS="$GAIA_HOME $LISTEN_ADDRESS $RPC_ADDRESS $GRPC_ADDRESS $GRPC_WEB_ADDRESS $LOG_LEVEL $P2P_ADDRESS"
+    $BIN $ARGS start &> /ibc-validator$i/logs &
 done
 
 # let the cosmos chain settle before starting eth as it

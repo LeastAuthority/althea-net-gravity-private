@@ -53,14 +53,25 @@ const TOTAL_TIMEOUT: Duration = Duration::from_secs(300);
 
 // Retrieve values from runtime ENV vars
 lazy_static! {
+    // Gravity test chain
     static ref ADDRESS_PREFIX: String =
         env::var("ADDRESS_PREFIX").unwrap_or_else(|_| CosmosAddress::DEFAULT_PREFIX.to_owned());
     static ref STAKING_TOKEN: String =
-        env::var("STAKING_TOKEN").unwrap_or_else(|_| "stake".to_owned());
+        env::var("STAKING_TOKEN").unwrap_or_else(|_| "ugraviton".to_owned());
     static ref COSMOS_NODE_GRPC: String =
         env::var("COSMOS_NODE_GRPC").unwrap_or_else(|_| "http://localhost:9090".to_owned());
     static ref COSMOS_NODE_ABCI: String =
         env::var("COSMOS_NODE_ABCI").unwrap_or_else(|_| "http://localhost:26657".to_owned());
+    // IBC test chain based off of cosmos-sdk simd
+    static ref IBC_ADDRESS_PREFIX: String =
+        env::var("ADDRESS_PREFIX").unwrap_or_else(|_| CosmosAddress::DEFAULT_PREFIX.to_owned());
+    static ref IBC_STAKING_TOKEN: String =
+        env::var("STAKING_TOKEN").unwrap_or_else(|_| "stake".to_owned());
+    static ref IBC_COSMOS_NODE_GRPC: String =
+        env::var("COSMOS_NODE_GRPC").unwrap_or_else(|_| "http://localhost:9190".to_owned());
+    static ref IBC_COSMOS_NODE_ABCI: String =
+        env::var("COSMOS_NODE_ABCI").unwrap_or_else(|_| "http://localhost:27657".to_owned());
+    // Ethereum test chain
     static ref ETH_NODE: String =
         env::var("ETH_NODE").unwrap_or_else(|_| "http://localhost:8545".to_owned());
 }

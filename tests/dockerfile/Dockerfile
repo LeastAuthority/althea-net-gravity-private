@@ -6,6 +6,9 @@ RUN dnf install -y git make gcc gcc-c++ which iproute iputils procps-ng vim-mini
 RUN npm install -g ts-node && npm install -g typescript
 ADD https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.10.10-bb74230f.tar.gz /geth/
 RUN cd /geth && tar -xvf * && mv /geth/**/geth /usr/bin/geth
+# the repo data from cosmos sdk
+RUN git clone https://github.com/cosmos/cosmos-sdk/ --branch v0.44.2 --single-branch
+RUN pushd cosmos-sdk/ && PATH=$PATH:/usr/local/go/bin GOPROXY=https://proxy.golang.org PATH=$PATH:/usr/local/go/bin make install
 # the actual source code for this repo, this **only** includes checked in files!
 # this is a bit of a pain but it does speed things up a lot
 ADD gravity.tar.gz /

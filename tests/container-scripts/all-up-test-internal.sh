@@ -11,6 +11,7 @@ HUSKY_SKIP_INSTALL=1 npm install
 npm run typechain
 
 bash /gravity/tests/container-scripts/setup-validators.sh $NODES
+bash /gravity/tests/container-scripts/setup-ibc-validators.sh $NODES
 
 bash /gravity/tests/container-scripts/run-testnet.sh $NODES $TEST_TYPE $ALCHEMY_ID &
 

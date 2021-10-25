@@ -23,6 +23,7 @@ make
 make install
 cd /gravity/
 tests/container-scripts/setup-validators.sh $NODES
+tests/container-scripts/setup-ibc-validators.sh $NODES
 tests/container-scripts/run-testnet.sh $NODES $TEST_TYPE $ALCHEMY_ID
 
 # deploy the ethereum contracts

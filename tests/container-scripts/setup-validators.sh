@@ -7,7 +7,7 @@ CHAIN_ID="gravity-test"
 
 NODES=$1
 
-ALLOCATION="10000000000stake,10000000000footoken"
+ALLOCATION="10000000000ugraviton,10000000000footoken"
 
 # first we start a genesis.json with validator 1
 # validator 1 will also collect the gentx's once gnerated
@@ -22,10 +22,13 @@ $BIN init $STARTING_VALIDATOR_HOME --chain-id=$CHAIN_ID validator1
 ## testing the generated one with the default values provided by the module.
 
 # add in denom metadata for both native tokens
-jq '.app_state.bank.denom_metadata += [{"name": "Foo Token", "symbol": "FOO", "base": "footoken", display: "mfootoken", "description": "A non-staking test token", "denom_units": [{"denom": "footoken", "exponent": 0}, {"denom": "mfootoken", "exponent": 6}]},{"name": "Stake Token", "symbol": "STEAK", "base": "stake", display: "mstake", "description": "A staking test token", "denom_units": [{"denom": "stake", "exponent": 0}, {"denom": "mstake", "exponent": 6}]}]' /validator$STARTING_VALIDATOR/config/genesis.json > /metadata-genesis.json
+jq '.app_state.bank.denom_metadata += [{"name": "Foo Token", "symbol": "FOO", "base": "footoken", display: "mfootoken", "description": "A non-staking test token", "denom_units": [{"denom": "footoken", "exponent": 0}, {"denom": "mfootoken", "exponent": 6}]},{"name": "Stake Token", "symbol": "GRAV", "base": "ugraviton", display: "graviton", "description": "A staking test token", "denom_units": [{"denom": "ugraviton", "exponent": 0}, {"denom": "graviton", "exponent": 6}]}]' /validator$STARTING_VALIDATOR/config/genesis.json > /metadata-genesis.json
 
 # a 60 second voting period to allow us to pass governance proposals in the tests
 jq '.app_state.gov.voting_params.voting_period = "60s"' /metadata-genesis.json > /edited-genesis.json
+
+# replace remaining instances of the default 'stake' token
+sed -i 's/stake/ugraviton/g' /edited-genesis.json
 
 mv /edited-genesis.json /genesis.json
 
@@ -65,7 +68,7 @@ ETHEREUM_KEY=$(grep address /validator-eth-keys | sed -n "$i"p | sed 's/.*://')
 # the /8 containing 7.7.7.7 is assigned to the DOD and never routable on the public internet
 # we're using it in private to prevent gaia from blacklisting it as unroutable
 # and allow local pex
-$BIN gentx $ARGS $GAIA_HOME --moniker validator$i --chain-id=$CHAIN_ID --ip 7.7.7.$i validator$i 500000000stake $ETHEREUM_KEY $ORCHESTRATOR_KEY
+$BIN gentx $ARGS $GAIA_HOME --moniker validator$i --chain-id=$CHAIN_ID --ip 7.7.7.$i validator$i 500000000ugraviton $ETHEREUM_KEY $ORCHESTRATOR_KEY
 # obviously we don't need to copy validator1's gentx to itself
 if [ $i -gt 1 ]; then
 cp /validator$i/config/gentx/* /validator1/config/gentx/
