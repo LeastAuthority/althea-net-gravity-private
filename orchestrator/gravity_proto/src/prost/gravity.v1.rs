@@ -49,13 +49,18 @@ pub enum ClaimType {
     LogicCallExecuted = 4,
     ValsetUpdated = 5,
 }
-/// SignType defines messages that have been signed by an orchestrator
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
-pub enum SignType {
-    Unspecified = 0,
-    OrchestratorSignedMultiSigUpdate = 1,
-    OrchestratorSignedWithdrawBatch = 2,
+/// IDSet represents a set of IDs
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IdSet {
+    #[prost(uint64, repeated, tag="1")]
+    pub ids: ::prost::alloc::vec::Vec<u64>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BatchFees {
+    #[prost(string, tag="1")]
+    pub token: ::prost::alloc::string::String,
+    #[prost(string, tag="2")]
+    pub total_fees: ::prost::alloc::string::String,
 }
 /// OutgoingTxBatch represents a batch of transactions going from gravity to ETH
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -104,6 +109,14 @@ pub struct OutgoingLogicCall {
     pub invalidation_nonce: u64,
     #[prost(uint64, tag="8")]
     pub block: u64,
+}
+/// SignType defines messages that have been signed by an orchestrator
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum SignType {
+    Unspecified = 0,
+    OrchestratorSignedMultiSigUpdate = 1,
+    OrchestratorSignedWithdrawBatch = 2,
 }
 /// BridgeValidator represents a validator's ETH address and its power
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -603,19 +616,6 @@ pub struct GenesisState {
     #[prost(message, repeated, tag="12")]
     pub unbatched_transfers: ::prost::alloc::vec::Vec<OutgoingTransferTx>,
 }
-/// IDSet represents a set of IDs
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IdSet {
-    #[prost(uint64, repeated, tag="1")]
-    pub ids: ::prost::alloc::vec::Vec<u64>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct BatchFees {
-    #[prost(string, tag="1")]
-    pub token: ::prost::alloc::string::String,
-    #[prost(string, tag="2")]
-    pub total_fees: ::prost::alloc::string::String,
-}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryParamsRequest {
 }
@@ -697,8 +697,8 @@ pub struct QueryLastPendingBatchRequestByAddrRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryLastPendingBatchRequestByAddrResponse {
-    #[prost(message, optional, tag="1")]
-    pub batch: ::core::option::Option<OutgoingTxBatch>,
+    #[prost(message, repeated, tag="1")]
+    pub batch: ::prost::alloc::vec::Vec<OutgoingTxBatch>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryLastPendingLogicCallByAddrRequest {
@@ -707,8 +707,8 @@ pub struct QueryLastPendingLogicCallByAddrRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryLastPendingLogicCallByAddrResponse {
-    #[prost(message, optional, tag="1")]
-    pub call: ::core::option::Option<OutgoingLogicCall>,
+    #[prost(message, repeated, tag="1")]
+    pub call: ::prost::alloc::vec::Vec<OutgoingLogicCall>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryOutgoingTxBatchesRequest {
