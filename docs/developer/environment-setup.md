@@ -89,7 +89,9 @@ sudo make proto-tools
 
 # Install protobufs plugins
 go install github.com/regen-network/cosmos-proto/protoc-gen-gocosmos
+go get github.com/regen-network/cosmos-proto/protoc-gen-gocosmos
 go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway
+go get github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway
 ```
 
 ```
