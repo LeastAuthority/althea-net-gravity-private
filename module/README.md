@@ -10,7 +10,7 @@ make test
 
 make proto-update-deps
 
-sudo make proto-tools
+PREFIX=$GOPATH make proto-tools
 ```
 
 Following builds and test:

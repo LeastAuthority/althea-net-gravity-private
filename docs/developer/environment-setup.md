@@ -18,10 +18,11 @@ Gravity bridge has three major components
 
 Follow the official guide [here](https://golang.org/doc/install)
 
-Make sure that the go/bin directory is in your path by adding this to your shell profile (~/.bashrc or ~/.zprofile)
+Make sure that GOPATH is set and the go/bin directory is in your path by adding this to your shell profile (~/.bashrc or ~/.zprofile)
 
 ```
-export PATH=$PATH:$(go env GOPATH)/bin
+export GOPATH=$(go env GOPATH)
+export PATH=$PATH:$GOPATH/bin
 ```
 
 ### Installing NodeJS
@@ -85,7 +86,7 @@ Change directory into the `cosmos-gravity-bridge/module` folder and run
 make proto-update-deps
 
 # Installing the protobuf tooling
-sudo make proto-tools
+PREFIX=$GOPATH make proto-tools
 
 # Install protobufs plugins
 go install github.com/regen-network/cosmos-proto/protoc-gen-gocosmos
@@ -106,14 +107,14 @@ make test
 
 #### Dependency Errors
 
-'''
+```
 go: downloading github.com/regen-network/protobuf v1.3.3-alpha.regen.1
 ../../../go/pkg/mod/github.com/tendermint/tendermint@v0.34.13/abci/types/types.pb.go:9:2: reading github.com/regen-network/protobuf/go.mod at revision v1.3.3-alpha.regen.1: unknown revision v1.3.3-alpha.regen.1
 ../../../go/pkg/mod/github.com/cosmos/cosmos-sdk@v0.44.2/types/tx/service.pb.go:12:2: reading github.com/regen-network/protobuf/go.mod at revision v1.3.3-alpha.regen.1: unknown revision v1.3.3-alpha.regen.1
 
 ```
 
-If you see depednecy errors like this, clean your cache and build again
+If you see dependency errors like this, clean your cache and build again
 
 ```
 
